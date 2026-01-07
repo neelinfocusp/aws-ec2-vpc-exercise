@@ -1,41 +1,61 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+
+// This is the key change:
+// It checks for an environment variable injected during build,
+// but defaults to '/api' which works perfectly with ALB path-based routing.
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
+
+console.log("---------", API_BASE);
 
 function App() {
   const [loadFactor, setLoadFactor] = useState(10);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [imageUploadLoading, setImageUploadLoading] = useState(false);
+  const [serverInfo, setServerInfo] = useState({
+    az: "Loading...",
+    instanceId: "",
+  });
 
-  // Function to call the CPU Load endpoint
+  useEffect(() => {
+    // Relative call: /api/metadata
+    fetch(`${API_BASE}/metadata`)
+      .then((res) => res.json())
+      .then((data) => setServerInfo(data))
+      .catch((err) => console.error("Metadata fetch failed", err));
+  }, []);
+
   const handleCpuLoad = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:3001/load/${loadFactor}`);
+      // Relative call: /api/load/10
+      const response = await fetch(`${API_BASE}/load/${loadFactor}`);
       const data = await response.json();
       alert(data.message);
     } catch (err) {
-      alert("Error triggering CPU load", err);
+      alert("Error triggering CPU load");
     } finally {
       setLoading(false);
     }
   };
 
-  // Function to call the Upload endpoint
   const handleUpload = async () => {
     if (!file) return alert("Please select a file first");
 
     const formData = new FormData();
     formData.append("image", file);
 
-    setLoading(true);
+    setImageUploadLoading(true);
     try {
-      const response = await fetch("http://localhost:3001/upload", {
+      // Relative call: /api/upload
+      const response = await fetch(`${API_BASE}/upload`, {
         method: "POST",
         body: formData,
       });
       const data = await response.json();
       alert(data.message || data.error);
     } catch (err) {
-      alert("Error uploading file", err);
+      alert("Error uploading file");
     } finally {
       setLoading(false);
     }
@@ -51,16 +71,26 @@ function App() {
       }}
     >
       <h1>AWS EC2 Load & S3 Tester</h1>
+      <div
+        style={{ background: "#f4f4f4", padding: "10px", borderRadius: "8px" }}
+      >
+        <p>
+          📍 Server Zone: <strong>{serverInfo.az}</strong>
+        </p>
+        <p>
+          🆔 Instance ID: <code>{serverInfo.instanceId}</code>
+        </p>
+      </div>
 
-      <hr />
-      <br />
+      <hr style={{ margin: "20px 0" }} />
 
       {/* Section 1: CPU Load */}
       <div
         style={{
-          marginBottom: "40px",
+          marginBottom: "20px",
           padding: "20px",
           border: "1px solid #ddd",
+          borderRadius: "8px",
         }}
       >
         <h2>1. CPU Load Test</h2>
@@ -69,44 +99,57 @@ function App() {
           type="number"
           value={loadFactor}
           onChange={(e) => setLoadFactor(e.target.value)}
-          style={{ padding: "8px", width: "80%" }}
+          style={{
+            padding: "8px",
+            width: "100%",
+            marginBottom: "10px",
+            boxSizing: "border-box",
+          }}
         />
-        <br />
         <button
           onClick={handleCpuLoad}
+          disabled={loading}
           style={{
-            padding: "8px 15px",
-            backgroundColor: "#28a745",
+            padding: "10px 20px",
+            backgroundColor: loading ? "#ccc" : "#28a745",
             color: "#fff",
             border: "none",
-            marginTop: "10px",
+            cursor: "pointer",
+            width: "100%",
           }}
         >
-          Start Load
+          {loading ? "Processing..." : "Start Load"}
         </button>
-        {loading && <p style={{ color: "blue" }}>Processing request...</p>}
       </div>
 
       {/* Section 2: S3 Upload */}
-      <div style={{ padding: "20px", border: "1px solid #ddd" }}>
+      <div
+        style={{
+          padding: "20px",
+          border: "1px solid #ddd",
+          borderRadius: "8px",
+        }}
+      >
         <h2>2. S3 File Upload</h2>
         <p>Choose an image to upload via VPC Endpoint:</p>
         <input
           type="file"
           onChange={(e) => setFile(e.target.files[0])}
-          style={{ marginBottom: "10px" }}
+          style={{ marginBottom: "15px", width: "100%" }}
         />
-        <br />
         <button
           onClick={handleUpload}
+          disabled={imageUploadLoading}
           style={{
-            padding: "8px 15px",
-            backgroundColor: "#28a745",
+            padding: "10px 20px",
+            backgroundColor: imageUploadLoading ? "#ccc" : "#007bff",
             color: "#fff",
             border: "none",
+            cursor: "pointer",
+            width: "100%",
           }}
         >
-          Upload to S3
+          {imageUploadLoading ? "Uploading..." : "Upload to S3"}
         </button>
       </div>
     </div>
